@@ -12,7 +12,9 @@ set -o pipefail
 umask 0077
 
 BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck disable=SC1090
 source "${BIN_DIR}/functions"
+# shellcheck disable=SC1090
 source "${BIN_DIR}/defaults.conf"
 
 usage() {
@@ -40,65 +42,84 @@ while getopts hf FLAG; do
     esac
 done
 
-if [ -d html ]; then
+if [ -e html ]; then
+    if [ ! -d html ]; then
+        echo -e "$ERR non-directory object with name html exists!"
+        exit 2
+    fi
     if [ $FORCE -ne 1 ]; then
-        echo -e "$ERR Html directory exists already!"
+        echo -e "$ERR HTML directory exists already!"
         echo "Specify -f to override"
         exit 2
     fi
-
-    rm -Rf html/ca/
-    rmdir html
 fi
 
 echo -e "$NOTE Creating directory structure"
 
-mkdir html/
-mkdir html/ca/
+HTMLDIR="html/ca/$CA_NAME"
+
+mkdir -p "$HTMLDIR"
+
+# shellcheck disable=SC2034
+CA_HTML_UPDATED=$(date -R)
 
 if openssl verify -CAfile ca/ca.crt ca/ca.crt >/dev/null 2>&1; then
     echo -e "$NOTE Creating index.html for root CA"
 
-    CA_HTML_ROOT_TITLE=$(openssl x509 -noout -subject -in ca/ca.crt -nameopt multiline | grep commonName | cut -d "=" -f 2-)
+    CA_HTML_ROOT_TITLE=$(openssl x509 -noout -subject -in ca/ca.crt -nameopt multiline | grep -P '^\s+commonName' | cut -d "=" -f 2-)
+    # shellcheck disable=SC2001
     CA_HTML_ROOT_NAME=$(echo "$CA_HTML_ROOT_TITLE" | sed 's/\s\+/_/g')
     CA_HTML_ROOT_HASH=$(openssl x509 -noout -fingerprint -sha1 -in ca/ca.crt | cut -d '=' -f 2-)
+    CA_HTML_ROOT_VALID_UNTIL=$(openssl x509 -noout -in ca/root.crt -enddate) # ignore notAfter=
+    CA_HTML_ROOT_VALID_UNTIL=${CA_HTML_ROOT_VALID_UNTIL:9}
 
+    # shellcheck disable=SC2034
+    CA_HTML_ROOT_REVOKED=$(openssl crl -in ca/ca.crl -text -noout | grep -cP '^\s+Revocation Date:') || true
 
-    template "${BIN_DIR}/templates/root_index.tpl" "html/ca/index.html"
+    template "${BIN_DIR}/templates/root_index.tpl" "$HTMLDIR/index.html"
 
     echo -e "$NOTE Copying certs"
 
-    cp ca/ca.crt "html/ca/${CA_HTML_ROOT_NAME}.crt"
-    cp ca/ca.crl "html/ca/${CA_HTML_ROOT_NAME}.crl"
+    cp ca/ca.crt "$HTMLDIR/${CA_HTML_ROOT_NAME}.crt"
+    cp ca/ca.crl "$HTMLDIR/${CA_HTML_ROOT_NAME}.crl"
 
-    ln -s "${CA_HTML_ROOT_NAME}.crt" "html/ca/$CA_NAME.crt"
-    ln -s "${CA_HTML_ROOT_NAME}.crl" "html/ca/$CA_NAME.crl"
+    ln -sf "${CA_HTML_ROOT_NAME}.crt" "$HTMLDIR/$CA_NAME.crt"
+    ln -sf "${CA_HTML_ROOT_NAME}.crl" "$HTMLDIR/$CA_NAME.crl"
 
-    echo -e "$SUCC html directory successfully created"
+    echo -e "$SUCC html directory '$HTMLDIR' successfully created"
 else
     echo -e "$NOTE Creating index.html for sign CA"
 
-    CA_HTML_ROOT_TITLE=$(openssl x509 -noout -subject -in ca/root.crt -nameopt multiline | grep commonName | cut -d "=" -f 2-)
+    CA_HTML_ROOT_TITLE=$(openssl x509 -noout -subject -in ca/root.crt -nameopt multiline | grep -P '^\s+commonName' | cut -d "=" -f 2-)
+    # shellcheck disable=SC2001
     CA_HTML_ROOT_NAME=$(echo "$CA_HTML_ROOT_TITLE" | sed 's/\s\+/_/g')
+    # shellcheck disable=SC2034
     CA_HTML_ROOT_HASH=$(openssl x509 -noout -fingerprint -sha1 -in ca/root.crt | cut -d '=' -f 2-)
-    export CA_HTML_ROOT_HASH
+    CA_HTML_ROOT_VALID_UNTIL=$(openssl x509 -noout -in ca/root.crt -enddate) # ignore notAfter=
+    CA_HTML_ROOT_VALID_UNTIL=${CA_HTML_ROOT_VALID_UNTIL:9}
 
-    CA_HTML_SIGN_TITLE=$(openssl x509 -noout -subject -in ca/ca.crt -nameopt multiline | grep commonName | cut -d "=" -f 2-)
+    CA_HTML_SIGN_TITLE=$(openssl x509 -noout -subject -in ca/ca.crt -nameopt multiline | grep -P '^\s+commonName' | cut -d "=" -f 2-)
+    # shellcheck disable=SC2001
     CA_HTML_SIGN_NAME=$(echo "$CA_HTML_SIGN_TITLE" | sed 's/\s\+/_/g')
+    # shellcheck disable=SC2034
     CA_HTML_SIGN_HASH=$(openssl x509 -noout -fingerprint -sha1 -in ca/ca.crt | cut -d '=' -f 2-)
-    export CA_HTML_SIGN_HASH
+    CA_HTML_SIGN_VALID_UNTIL=$(openssl x509 -noout -in ca/root.crt -enddate) # ignore notAfter=
+    CA_HTML_SIGN_VALID_UNTIL=${CA_HTML_SIGN_VALID_UNTIL:9}
 
+    # shellcheck disable=SC2034
+    CA_HTML_SIGN_REVOKED=$(openssl crl -in ca/ca.crl -text -noout | grep -cP '^\s+Revocation Date:') || true
 
-    template "${BIN_DIR}/templates/sign_index.tpl" "html/ca/index.html"
+    template "${BIN_DIR}/templates/sign_index.tpl" "$HTMLDIR/index.html"
 
     echo -e "$NOTE Copying certs"
 
-    cp ca/root.crt "html/ca/${CA_HTML_ROOT_NAME}.crt"
-    cp ca/ca.crt "html/ca/${CA_HTML_SIGN_NAME}.crt"
-    cp ca/ca.crl "html/ca/${CA_HTML_SIGN_NAME}.crl"
+    cp ca/root.crt "$HTMLDIR/${CA_HTML_ROOT_NAME}.crt"
+    cp ca/ca.crt "$HTMLDIR/${CA_HTML_SIGN_NAME}.crt"
+    cp ca/ca.crl "$HTMLDIR/${CA_HTML_SIGN_NAME}.crl"
+    cp ca/chain.pem "$HTMLDIR/${CA_HTML_SIGN_NAME}.chain.pem"
 
-    ln -s "${CA_HTML_SIGN_NAME}.crt" "html/ca/$CA_NAME.crt"
-    ln -s "${CA_HTML_SIGN_NAME}.crl" "html/ca/$CA_NAME.crl"
+    ln -sf "${CA_HTML_SIGN_NAME}.crt" "$HTMLDIR/$CA_NAME.crt"
+    ln -sf "${CA_HTML_SIGN_NAME}.crl" "$HTMLDIR/$CA_NAME.crl"
 
-    echo -e "$SUCC html directory successfully created"
+    echo -e "$SUCC html directory '$HTMLDIR' successfully created"
 fi

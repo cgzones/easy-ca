@@ -14,7 +14,9 @@ set -o pipefail
 umask 0077
 
 BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck disable=SC1090
 source "${BIN_DIR}/functions"
+# shellcheck disable=SC1090
 source "${BIN_DIR}/defaults.conf"
 
 usage() {
@@ -52,11 +54,17 @@ elif [ "$CSR_PATH" = "" ]; then
     echo -e -n "$ERR " && usage && exit 1
 fi
 
+if [ ! -f "$CSR_PATH" ]; then
+    echo -e "$ERR No csr found at '$CSR_PATH'!"
+    exit 2
+fi
+
+echo -e "$NOTE Verifying certificate request ..."
 openssl req -text -noout -verify -in "$CSR_PATH"
 
-export CSR_SUBJ=$(openssl req -utf8 -in "$CSR_PATH" -noout -subject -nameopt multiline)
-export CSR_CERT_CN=$(echo "$CSR_SUBJ" | grep -P '^\s+commonName' | cut -d '=' -f 2- | sed -e 's/^[[:space:]]*//')
-export CSR_CERT_MAIL=$(echo "$CSR_SUBJ" | grep -P '^\s+emailAddress' | cut -d '=' -f 2- | sed -e 's/^[[:space:]]*//')
+CSR_SUBJ=$(openssl req -utf8 -in "$CSR_PATH" -noout -subject -nameopt multiline)
+CSR_CERT_CN=$(echo "$CSR_SUBJ" | grep -P '^\s+commonName' | cut -d '=' -f 2- | sed -e 's/^[[:space:]]*//') || true
+CSR_CERT_MAIL=$(echo "$CSR_SUBJ" | grep -P '^\s+emailAddress' | cut -d '=' -f 2- | sed -e 's/^[[:space:]]*//') || true
 if [ -z "$CSR_CERT_CN" ]; then
     echo -e "$ERR No name supplied in request, exiting."
     exit 1
@@ -82,7 +90,7 @@ echo -e "$NOTE Signing CSR for '$CSR_CERT_CN' with email address '$CSR_CERT_MAIL
 pushd "${BIN_DIR}/.." > /dev/null
 
 echo
-echo -e -n "$INPUT Enter passphase for signing CA key (verify the above informations!):"
+echo -e -n "$INPUT Enter passphase for signing CA key (Verify the above information!!):"
 read -r -s PASS
 echo
 export CA_PASS="$PASS"

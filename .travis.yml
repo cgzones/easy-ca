@@ -1,14 +1,24 @@
 # travis
 
+git:
+  depth: 3
+
 language: generic
-sudo: false
-dist: trusty
+os: linux
+dist: bionic
+
+addons:
+  apt:
+    packages:
+      - shellcheck
 
 before_install:
   - bash --version
   - openssl version
+  - shellcheck --version
 
 script:
+  - shellcheck create-client create-root-ca create-server create-signing-ca functions gen-html revoke-cert show-status sign-csr
   - |
       bash --posix ./create-root-ca -l -d travis-ca <<EOF
       travis-ca
@@ -82,6 +92,22 @@ script:
       bash --posix ./bin/revoke-cert -c certs/clients/travis-client/travis-client.crt << EOF
       5
       y
+      signCA_password
+      EOF
+  - |
+      openssl req -nodes -new -newkey rsa:2048 -sha256 -out csr.pem << EOF
+      AU
+      Some-State
+      Locality
+      Organization Name
+      Organizational Unit Name
+      csr-test
+      test@bogus.com
+
+
+      EOF
+  - |
+      bash --posix ./bin/sign-csr -c csr.pem << EOF
       signCA_password
       EOF
   - bash --posix ./bin/show-status

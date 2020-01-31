@@ -11,8 +11,10 @@ set -o pipefail
 
 umask 0077
 
-BIN_DIR="$( cd "$( dirname "$BASH_SOURCE[0]" )" && pwd )"
+BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck disable=SC1090
 source "$BIN_DIR/functions"
+# shellcheck disable=SC1090
 source "$BIN_DIR/defaults.conf"
 
 ROOT_DIR="$(readlink -e "$BIN_DIR/..")"
@@ -28,27 +30,27 @@ fi
 # check directory structure
 
 if [ ! -d bin/templates ]; then
-    echo -e "$ERR No 'bin/templates' directory!'";
+    echo -e "$ERR No 'bin/templates' directory!";
     exit 2
 fi
 
 if [ ! -d ca ]; then
-    echo -e "$ERR No 'ca' directory!'";
+    echo -e "$ERR No 'ca' directory!";
     exit 2
 fi
 
 if [ ! -f ca/ca.conf ]; then
-    echo -e "$ERR No 'ca/ca.conf' file!'";
+    echo -e "$ERR No 'ca/ca.conf' file!";
     exit 2
 fi
 
 if [ ! -f ca/ca.crt ]; then
-    echo -e "$ERR No 'ca/ca.crt' file!'";
+    echo -e "$ERR No 'ca/ca.crt' file!";
     exit 2
 fi
 
 if [ ! -f ca/ca.csr ]; then
-    echo -e "$ERR No 'ca/ca.csr' file!'";
+    echo -e "$ERR No 'ca/ca.csr' file!";
     exit 2
 fi
 
@@ -58,57 +60,57 @@ if [ ! -f ca/chain.pem ]; then
 fi
 
 if [ ! -f ca/root.crt ]; then
-    echo -e "$ERR No 'ca/root.crt' file!'";
+    echo -e "$ERR No 'ca/root.crt' file!";
     exit 2
 fi
 
 if [ ! -d ca/archive ]; then
-    echo -e "$ERR No 'ca/archives' directory!'";
+    echo -e "$ERR No 'ca/archives' directory!";
     exit 2
 fi
 
 if [ ! -d ca/crl ]; then
-    echo -e "$ERR No 'ca/crl' directory!'";
+    echo -e "$ERR No 'ca/crl' directory!";
     exit 2
 fi
 
 if [ ! -d ca/db ]; then
-    echo -e "$ERR No 'ca/db' directory!'";
+    echo -e "$ERR No 'ca/db' directory!";
     exit 2
 fi
 
 if [ ! -f ca/db/certificate.db ]; then
-    echo -e "$ERR No 'ca/db/certificate.db' file!'";
+    echo -e "$ERR No 'ca/db/certificate.db' file!";
     exit 2
 fi
 
 if [ ! -f ca/db/certificate.db.attr ]; then
-    echo -e "$ERR No 'ca/db/certificate.db.attr' file!'";
+    echo -e "$ERR No 'ca/db/certificate.db.attr' file!";
     exit 2
 fi
 
 if [ ! -f ca/db/crl.srl ]; then
-    echo -e "$ERR No 'ca/db/crl.srl' file!'";
+    echo -e "$ERR No 'ca/db/crl.srl' file!";
     exit 2
 fi
 
 if [ ! -f ca/db/crt.srl ]; then
-    echo -e "$ERR No 'ca/db/crt.srl' file!'";
+    echo -e "$ERR No 'ca/db/crt.srl' file!";
     exit 2
 fi
 
 if [ ! -f ca/private/ca.key ]; then
-    echo -e "$ERR No 'ca/private/ca.key' file!'";
+    echo -e "$ERR No 'ca/private/ca.key' file!";
     exit 2
 fi
 
 if [ ! -d ca/private ]; then
-    echo -e "$ERR No 'ca/private' directory!'";
+    echo -e "$ERR No 'ca/private' directory!";
     exit 2
 fi
 
 if [ ! -d certs ]; then
-    echo -e "$ERR No 'certs' directory!'";
+    echo -e "$ERR No 'certs' directory!";
     exit 2
 fi
 
@@ -128,8 +130,7 @@ else
     rootCA=0
 fi
 
-cert_txt=$(openssl x509 -noout -in "$CA_CRT" -text)
-
+echo -e "$NOTE Sign CA details"
 echo -e "$NOTE     Name                        $CA_NAME"
 echo -e "$NOTE     Domain                      $CA_DOMAIN"
 subject=$(openssl x509 -noout -in "$CA_CRT" -subject) # ignore subject=
@@ -138,9 +139,15 @@ if [ ! $rootCA -eq 1 ]; then
     issuer=$(openssl x509 -noout -in "$CA_CRT" -issuer) # ignore issuer=
     echo -e "$NOTE     Issuer                      ${issuer:7}"
 fi
-echo -e "$NOTE     Valid until                $(echo "$cert_txt" | grep 'Not After :' | cut -d ':' -f2-)"
+enddate=$(openssl x509 -noout -in "$CA_CRT" -enddate) # ignore notAfter=
+echo -e -n "$NOTE     Valid until                 ${enddate:9}"
+if ! openssl x509 -noout -in "$CA_CRT" -checkend 15768000 > /dev/null; then # 1/2 year
+    echo -e -n " - \033[33;1mabout to expire\033[0m"
+else
+    echo
+fi
 
-echo -e "$NOTE     Bits                       $(echo "$cert_txt" | grep 'Public-Key:' | cut -d ':' -f2 | tr -d "()")"
+echo -e "$NOTE     Bits                       $(openssl x509 -noout -in "$CA_CRT" -text -certopt no_header,no_aux,no_extensions,no_version,no_serial,no_issuer,no_validity,no_subject,no_signame,no_sigdump | grep 'Public-Key:' | cut -d ':' -f2 | tr -d "()")"
 
 srl=$(cat "$ROOT_DIR/ca/db/crt.srl")
 certs=$((16#$srl - rootCA - 1))
@@ -151,16 +158,32 @@ if ! openssl crl -in "$ROOT_DIR/ca/ca.crl" -CAfile "$CA_CRT" >/dev/null 2>&1; th
     exit 2
 fi
 
-if [ "$(openssl crl -in "$ROOT_DIR/ca/ca.crl" -text -noout | grep -c 'No Revoked Certificates.')" -eq 1 ]; then
+if [ "$(openssl crl -in "$ROOT_DIR/ca/ca.crl" -text -noout | grep -cP '^No Revoked Certificates.')" -eq 1 ]; then
     revoked_certs=0
 else
-    revoked_certs=$(openssl crl -in "$ROOT_DIR/ca/ca.crl" -text -noout | grep -c 'Revocation Date: ')
+    revoked_certs=$(openssl crl -in "$ROOT_DIR/ca/ca.crl" -text -noout | grep -cP '^\s+Revocation Date:')
 fi
 echo -e "$NOTE     Revoked Certificates        $revoked_certs"
 
 revoked_lists=$(($(cat "$ROOT_DIR/ca/db/crl.srl") - 1))
 echo -e "$NOTE     Revoke Certificates Lists  "  $revoked_lists
 
+
+if [ $rootCA -eq 0 ]; then
+    ROOT_CRT="$ROOT_DIR/ca/root.crt"
+    echo -e "$NOTE Root CA details"
+    root_subject=$(openssl x509 -noout -in "$ROOT_CRT" -subject) # ignore subject=
+    echo -e "$NOTE     Subject                     ${root_subject:8}"
+    root_enddate=$(openssl x509 -noout -in "$ROOT_CRT" -enddate) # ignore notAfter=
+    echo -e -n "$NOTE     Valid until                 ${root_enddate:9}"
+    if ! openssl x509 -noout -in "$ROOT_CRT" -checkend 15768000 > /dev/null; then # 1/2 year
+        echo -e -n " - \033[33;1mabout to expire\033[0m"
+    else
+        echo
+    fi
+
+    echo -e "$NOTE     Bits                       $(openssl x509 -noout -in "$ROOT_CRT" -text -certopt no_header,no_aux,no_extensions,no_version,no_serial,no_issuer,no_validity,no_subject,no_signame,no_sigdump | grep 'Public-Key:' | cut -d ':' -f2 | tr -d "()")"
+fi
 
 skip=$rootCA
 if [ $certs -gt 0 ]; then
@@ -180,54 +203,57 @@ if [ $certs -gt 0 ]; then
                 revoked="yes"
             fi
 
-            ca_cname=$(openssl x509 -noout -subject -in "$ROOT_DIR/ca/archive/$ca_number.pem" -nameopt multiline | grep -P '^\s+commonName' | cut -d '=' -f 2-)
+            pem_file="$ROOT_DIR/ca/archive/$ca_number.pem"
 
-            txt=$(openssl x509 -in "$ROOT_DIR/ca/archive/$ca_number.pem" -noout -text)
+            ca_cname=$(openssl x509 -noout -subject -in "$pem_file" -nameopt multiline | grep -P '^\s+commonName' | cut -d '=' -f 2-)
 
-            server_cert=$(echo "$txt" | grep -c 'TLS Web Server Authentication') || true
-            sign_cert=$(echo "$txt" | grep -c 'Certificate Sign') || true
-            client_cert=$(echo "$txt" | grep -c 'TLS Web Client Authentication') || true
-            valid_since=$(echo "$txt" | grep 'Not Before:' | cut -d ':' -f2- | sed -e 's/^[[:space:]]*//')
-            valid_until=$(echo "$txt" | grep 'Not After :' | cut -d ':' -f2- | sed -e 's/^[[:space:]]*//')
-            bits=$(echo "$txt" | grep 'Public-Key:' | cut -d ':' -f2 | tr -d "()")
+            server_cert=$(openssl x509 -noout -in "$pem_file" -ext extendedKeyUsage | grep -c 'TLS Web Server Authentication') || true
+            sign_cert=$(openssl x509 -noout -in "$pem_file" -ext keyUsage | grep -c 'Certificate Sign') || true
+            client_cert=$(openssl x509 -noout -in "$pem_file" -ext extendedKeyUsage | grep -c 'TLS Web Client Authentication') || true
+            valid_since=$(openssl x509 -noout -in "$pem_file" -startdate) # ignore notBefore=
+            valid_until=$(openssl x509 -noout -in "$pem_file" -enddate) # ignore notAfter=
+            bits=$(openssl x509 -noout -in "$pem_file" -text -certopt no_header,no_aux,no_extensions,no_version,no_serial,no_issuer,no_validity,no_subject,no_signame,no_sigdump | grep 'Public-Key:' | cut -d ':' -f2 | tr -d "()")
+            subjectAltName=$(openssl x509 -noout -in "$pem_file" -ext subjectAltName)
+            subjectAltName=$(grep -vP '^X509v3 Subject Alternative Name:\s*$' <<< "$subjectAltName" | sed -e 's/^[[:space:]]*//')
 
             if [ "$server_cert" -ge 1 ]; then
                 type="server"
-                san="                SAN:            $(echo "$txt" | grep 'DNS:' | sed -e 's/^[[:space:]]*//')\n"
+                san="                SAN:            $subjectAltName\n"
             elif [ "$sign_cert" -ge 1 ]; then
                 type="signing"
                 san=""
             elif [ "$client_cert" -ge 1 ]; then
                 type="client"
-                if [ $(echo "$txt" | grep -c 'email:') -eq 0 ]; then
-                    san="                SAN:            no email address found\n"
-                else
-                    san="                SAN:            $(echo "$txt" | grep 'email:' | sed -e 's/^[[:space:]]*//')\n"
-                fi
+                san="                SAN:            $subjectAltName\n"
             else
                 echo -e "$ERR unknown certificate type!!"
                 exit 2
             fi
 
-            sha1_hash=$(openssl x509 -noout -fingerprint -sha1 -in "$ROOT_DIR/ca/archive/$ca_number.pem" | cut -d '=' -f 2-)
+            sha1_hash=$(openssl x509 -noout -fingerprint -sha1 -in "$ROOT_DIR/ca/archive/$ca_number.pem") # ignore SHA1 Fingerprint=
 
-            subj=$(openssl x509 -noout -in "$ROOT_DIR/ca/archive/$ca_number.pem" -subject | cut -d '=' -f 2-)
+            subj=$(openssl x509 -noout -in "$ROOT_DIR/ca/archive/$ca_number.pem" -subject) # ignore subject=
 
 
             echo -e -n "$NOTE       $ca_number - $type -$ca_cname"
+            if ! openssl x509 -noout -in "$pem_file" -checkend 0 > /dev/null; then
+                echo -e -n " - \033[33;1mexpired\033[0m"
+            elif ! openssl x509 -noout -in "$pem_file" -checkend 2592000 > /dev/null; then # 30 days
+                echo -e -n " - \033[33;1mabout to expire\033[0m"
+            fi
             if [ $revoked = "yes" ]; then
-                echo " - revoked"
+                echo -e " - \033[33;1mrevoked\033[0m"
             else
                 echo
             fi
-            echo -e "                Subject:        $subj"
+            echo -e "                Subject:        ${subj:8}"
             echo -e -n "$san"
             echo -e "                Revoked:        $revoked"
-            echo -e "                Valid since:    $valid_since"
-            echo -e "                Valid until:    $valid_until"
+            echo -e "                Valid since:    ${valid_since:10}"
+            echo -e "                Valid until:    ${valid_until:9}"
             echo -e "                Bits:          $bits"
             echo -e "                Type:           $type"
-            echo -e "                SHA1 hash:      $sha1_hash"
+            echo -e "                SHA1 hash:      ${sha1_hash:17}"
             echo -e ""
 
         fi

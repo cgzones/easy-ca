@@ -1,7 +1,7 @@
 [ default ]
 ca                      = {{CA_NAME}}
 domain                  = {{CA_DOMAIN}}
-base_url                = https://$domain/ca       # CA base URL
+base_url                = https://$domain/ca/$ca   # CA base URL
 aia_url                 = $base_url/$ca.crt        # CA certificate URL
 crl_url                 = $base_url/$ca.crl        # CRL distribution point
 name_opt                = multiline,-esc_msb,utf8  # Display UTF-8 characters

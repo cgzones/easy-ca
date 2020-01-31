@@ -12,7 +12,9 @@ set -o pipefail
 umask 0077
 
 BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck disable=SC1090
 source "${BIN_DIR}/functions"
+# shellcheck disable=SC1090
 source "${BIN_DIR}/defaults.conf"
 
 usage() {

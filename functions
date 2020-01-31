@@ -93,7 +93,7 @@ init_ca_home() {
 
     echo -e "$NOTE Initializing CA home"
 
-    pushd "${CA_HOME}" > /dev/null
+    pushd "${CA_HOME}" > /dev/null || exit
 
     # Create top-level CA structure
     mkdir ca
@@ -113,7 +113,7 @@ init_ca_home() {
     echo 01 > ca/db/crt.srl
     echo 01 > ca/db/crl.srl
 
-    popd > /dev/null
+    popd > /dev/null || exit
 }
 
 ##
@@ -127,6 +127,7 @@ generate_conf() {
     echo -e -n "$INPUT Short label for new CA [${CA_NAME}]: "
     read -r NAME
     if [ -n "${NAME}" ]; then
+        # shellcheck disable=SC2001
         CA_NAME=$(echo "${NAME}" | sed 's/[^A-Za-z0-9-]/-/g')
     fi
 
@@ -140,7 +141,7 @@ generate_conf() {
     fi
 
     echo
-    echo -e "$SUCC CRL URL will be https://${CA_DOMAIN}/ca/${CA_NAME}.crl"
+    echo -e "$SUCC CRL URL will be 'https://${CA_DOMAIN}/ca/${CA_NAME}/${CA_NAME}.crl'"
     echo
 
     echo -e -n "$INPUT Default country code for new certificates [${CA_CERT_C}]: "

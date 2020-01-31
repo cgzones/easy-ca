@@ -12,7 +12,9 @@ set -o pipefail
 umask 0077
 
 BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck disable=SC1090
 source "${BIN_DIR}/functions"
+# shellcheck disable=SC1090
 source "${BIN_DIR}/defaults.conf"
 
 usage() {
@@ -45,7 +47,7 @@ done
 
 if [ $OPTIND -le $# ]; then
     echo -e -n "$ERR " && usage && exit 2
-elif [[ "${CA_DIR}" = "" ]]; then
+elif [ "${CA_DIR}" = "" ]; then
     echo -e -n "$SUCC " && usage && exit 2
 fi
 
@@ -59,7 +61,7 @@ echo -e "$NOTE Creating new signing sub-CA in '${CA_DIR}'"
 echo
 
 init_ca_home "${CA_DIR}"
-trap 'rm -Rf "${CA_DIR}"' 0
+trap 'rm -Rf "${CA_DIR}"' 0 2
 
 # early verification of root ca password
 echo -e -n "$INPUT Enter passphase for root CA key: "
@@ -73,8 +75,10 @@ openssl rsa -check \
 
 
 generate_conf "${CA_DIR}/bin/defaults.conf"
+# shellcheck disable=SC1090
 source "${CA_DIR}/bin/defaults.conf"
 
+# shellcheck disable=SC2153
 CA_CERT_CN="${CA_CERT_O} Certificate ${CA_NAME}"
 echo -e -n "$INPUT Common Name for CA certificate [${CA_CERT_CN}]: "
 read -r CERT_CN
@@ -86,7 +90,7 @@ echo
 echo -e -n "$INPUT Enter passphase for encrypting signing sub-CA key: "
 read -r -s PASS1
 echo
-if [[ ${#PASS1} -lt 4 ]]; then
+if [ ${#PASS1} -lt 4 ]; then
     echo -e "$ERR Passphrase is too short, please use at least 4 characters!"
     exit 1
 fi
@@ -171,5 +175,5 @@ popd > /dev/null
 unset CA_PASS
 unset CA_PARENT_PASS
 
-trap 0
+trap - 0 2
 echo -e "$SUCC Signing sub-CA initialized."
