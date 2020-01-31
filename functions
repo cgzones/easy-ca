@@ -16,6 +16,7 @@ revoke-cert
 functions
 show-status
 gen-html
+renew-cert
 "
 
 export TEMPLATES_ROOT="
@@ -34,6 +35,7 @@ revoke-cert
 functions
 show-status
 gen-html
+renew-cert
 "
 
 export TEMPLATES_SIGN="

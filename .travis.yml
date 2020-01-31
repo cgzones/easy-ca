@@ -18,7 +18,7 @@ before_install:
   - shellcheck --version
 
 script:
-  - shellcheck create-client create-root-ca create-server create-signing-ca functions gen-html revoke-cert show-status sign-csr
+  - shellcheck create-client create-root-ca create-server create-signing-ca functions gen-html renew-cert revoke-cert show-status sign-csr
   - |
       bash --posix ./create-root-ca -l -d travis-ca <<EOF
       travis-ca
@@ -37,7 +37,7 @@ script:
       bash --posix ./bin/create-server -s travis-server.bogus.com -a www.travis-server.bogus.com << EOF
       rootCA_password
       San Francisco
-      Jurisdiction of travis-server.bogus-com
+      Jurisdiction of travis-server.bogus.com
       EOF
   - |
       bash --posix ./bin/create-client -c travis-client << EOF
@@ -73,7 +73,11 @@ script:
       bash --posix ./bin/create-server -s travis-server.bogus.com -a www.travis-server.bogus.com << EOF
       signCA_password
       San Francisco
-      Jurisdiction of travis-server.bogus-com
+      Jurisdiction of travis-server.bogus.com
+      EOF
+  - |
+      bash --posix ./bin/renew-cert -s travis-server-bogus-com -t server << EOF
+      signCA_password
       EOF
   - |
       bash --posix ./bin/create-client -c travis-client << EOF
@@ -83,13 +87,17 @@ script:
       travis-client@bogus.com
       EOF
   - |
-      bash --posix ./bin/revoke-cert -c certs/server/travis-server-bogus-com/travis-server-bogus-com.crt << EOF
+      bash --posix ./bin/renew-cert -s travis-client -t client << EOF
+      signCA_password
+      EOF
+  - |
+      bash --posix ./bin/revoke-cert -c certs/server/travis-server-bogus-com/travis-server-bogus-com.crt.old << EOF
       1
       y
       signCA_password
       EOF
   - |
-      bash --posix ./bin/revoke-cert -c certs/clients/travis-client/travis-client.crt << EOF
+      bash --posix ./bin/revoke-cert -c certs/clients/travis-client/travis-client.crt.old << EOF
       5
       y
       signCA_password

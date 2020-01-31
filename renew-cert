@@ -1,0 +1,143 @@
+#!/bin/bash
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+# Christian Göttsche <cgzones@googlemail.com>
+
+set -eu
+set -o pipefail
+
+umask 0077
+
+BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck disable=SC1090
+source "${BIN_DIR}/functions"
+# shellcheck disable=SC1090
+source "${BIN_DIR}/defaults.conf"
+
+usage() {
+    echo "Usage: $0 -s SHORT_NAME -t type"
+    echo "Renew a client/server certificate with SHORT_NAME"
+    echo "  The certificate must be initally created in the current CA environemnt"
+    echo
+    echo "Options:"
+    echo "    -s SHORT_NAME   Common Name of the certificate to renew"
+    echo "    -t type         The type of certificate to renew"
+    echo "                      Possible values: client server"
+    echo
+}
+
+if [ ! -f ca/ca.crt ]; then
+    echo -e "$ERR Must be run inside a CA directory!"
+    exit 2
+fi
+
+SHORT_NAME=
+TYPE=
+DIRNAME=
+
+while getopts s:t:h FLAG; do
+    case $FLAG in
+        h) echo -e -n "$SUCC " && usage && exit 0
+           ;;
+        s) SHORT_NAME="${OPTARG}"
+           ;;
+        t) if [ "${OPTARG}" == "server" ]; then
+               TYPE="server"
+               DIRNAME="server"
+           elif [ "${OPTARG}" == "client" ]; then
+               TYPE="client"
+               DIRNAME="clients"
+           else
+               echo -e -n "$ERR " && usage && exit 2
+           fi
+           ;;
+        *) echo -e -n "$ERR " && usage && exit 2
+           ;;
+    esac
+done
+
+if [ $OPTIND -le $# ]; then
+    echo -e -n "$ERR " && usage && exit 2
+elif [ "$SHORT_NAME" = "" ]; then
+    echo -e -n "$ERR " && usage && exit 2
+elif [ "$TYPE" = "" ]; then
+    echo -e -n "$ERR " && usage && exit 2
+elif [ "$DIRNAME" = "" ]; then
+    echo -e -n "$ERR " && usage && exit 2
+fi
+
+CA_DIR_PATH="certs/$DIRNAME/$SHORT_NAME"
+
+if [ ! -d "$CA_DIR_PATH" ]; then
+    echo -e "$ERR Configuration for '$SHORT_NAME' does not exist, exiting."
+    exit 1
+fi
+
+
+SAN=$(openssl x509 -noout -in "$CA_DIR_PATH/$SHORT_NAME.crt" -ext subjectAltName)
+SAN=$(grep -vP '^X509v3 Subject Alternative Name:\s*$' <<< "$SAN" | sed -e 's/^[[:space:]]*//')
+if [ -z "$SAN" ]; then
+    echo -e "$ERR Can not retrieve Subject Alternative Name, exiting."
+    exit 1
+fi
+export SAN
+
+
+echo -e "$NOTE Details of $TYPE certificate to renew"
+openssl x509 -noout -in "$CA_DIR_PATH/$SHORT_NAME.crt" -text -certopt no_sigdump,no_pubkey
+
+echo
+echo -e -n "$INPUT Enter passphase for signing CA key: "
+read -r -s PASS
+echo
+export CA_PASS="${PASS}"
+openssl rsa -check \
+            -in ca/private/ca.key \
+            -passin env:CA_PASS \
+            -noout
+
+
+echo -e "$NOTE Creating backup of old certificate"
+cp --backup=numbered "$CA_DIR_PATH/$SHORT_NAME.crt" "$CA_DIR_PATH/$SHORT_NAME.crt.old"
+cp --backup=numbered "$CA_DIR_PATH/$SHORT_NAME.csr" "$CA_DIR_PATH/$SHORT_NAME.csr.old"
+
+echo -e "$NOTE Creating the new $TYPE csr"
+
+openssl req -new -nodes \
+            -batch \
+            -config "$CA_DIR_PATH/$SHORT_NAME.conf" \
+            -key "$CA_DIR_PATH/$SHORT_NAME.key" \
+            -out "$CA_DIR_PATH/$SHORT_NAME.csr"
+openssl rsa -noout -check -in "$CA_DIR_PATH/$SHORT_NAME.key"
+
+echo -e "$NOTE Creating the $TYPE certificate"
+
+openssl ca -batch -notext \
+           -config ca/ca.conf \
+           -in "$CA_DIR_PATH/$SHORT_NAME.csr" \
+           -out "$CA_DIR_PATH/$SHORT_NAME.crt" \
+           -extensions "$TYPE"_ext \
+           -passin env:CA_PASS
+
+echo -e "$NOTE Verifying certificate/key pair"
+
+key_mod=$(openssl rsa -noout -modulus -in "$CA_DIR_PATH/$SHORT_NAME.key")
+cert_mod=$(openssl x509 -noout -modulus -in "$CA_DIR_PATH/$SHORT_NAME.crt")
+
+if [ ! "$key_mod" = "$cert_mod" ];then
+    echo -e "$ERR Certificate/Key pair invalid:"
+    echo -e "$ERR     <>$cert_mod<>"
+    echo -e "$ERR     <>$key_mod<>"
+    echo
+    exit 2
+fi
+
+echo -e "$NOTE Verifying trusted chain"
+
+openssl verify -CAfile ca/chain.pem "$CA_DIR_PATH/$SHORT_NAME.crt"
+
+unset CA_PASS
+
+echo -e "$SUCC Renewed $TYPE certificate for '${SHORT_NAME}' created."
