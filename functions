@@ -198,7 +198,7 @@ EOF
 ##
 ## ask_server_cert_quesetions
 ##
-## Ask questions to fill a server certifcate
+## Ask questions to fill a server certificate
 ##
 ask_server_cert_questions() {
 
@@ -236,7 +236,7 @@ ask_server_cert_questions() {
 ##
 ## ask_client_cert_quesetions
 ##
-## Ask questions to fill a client certifcate
+## Ask questions to fill a client certificate
 ##
 ask_client_cert_questions() {
 

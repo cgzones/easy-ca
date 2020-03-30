@@ -19,7 +19,7 @@ source "${BIN_DIR}/defaults.conf"
 usage() {
     echo "Usage: $0 -s SHORT_NAME -t type"
     echo "Renew a client/server certificate with SHORT_NAME"
-    echo "  The certificate must be initally created in the current CA environemnt"
+    echo "  The certificate must be initially created in the current CA environment"
     echo
     echo "Options:"
     echo "    -s SHORT_NAME   Common Name of the certificate to renew"

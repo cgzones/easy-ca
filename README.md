@@ -55,7 +55,7 @@ $ROOT_CA_DIR/ca/ca.crl
 
 ### (Optional) Create an Intermediate Signing CA
 
-Running **create-signing-ca** from within a Root CA installation will initialize a new Intermediate CA directory structure, indepedent and separate from the Root CA. A Root CA may issue multiple Intermediate CAs.
+Running **create-signing-ca** from within a Root CA installation will initialize a new Intermediate CA directory structure, independent and separate from the Root CA. A Root CA may issue multiple Intermediate CAs.
 
 ```
 $ROOT_CA_DIR/bin/create-signing-ca -d $SIGNING_CA_DIR

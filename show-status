@@ -19,7 +19,7 @@ source "$BIN_DIR/defaults.conf"
 
 ROOT_DIR="$(readlink -e "$BIN_DIR/..")"
 
-echo -e "$NOTE Checking direcory $ROOT_DIR  ..."
+echo -e "$NOTE Checking directory $ROOT_DIR  ..."
 
 if [ -L "$BIN_DIR/functions" ]; then
     echo -e "$NOTE Symlinked toolchain (dev mode)"
@@ -120,7 +120,7 @@ if openssl verify -CAfile "$CA_CRT" "$CA_CRT" >/dev/null 2>&1; then
     echo -e "$SUCC RootCA directory (found self-signed CA)"
 
     if [ ! -f "$ROOT_DIR/ca/archive/01.pem" ] || ! cmp "$CA_CRT" "$ROOT_DIR/ca/archive/01.pem" >/dev/null; then
-        echo -e "$ERR Main certificate does not match first archiv entry!"
+        echo -e "$ERR Main certificate does not match first archive entry!"
         exit 2
     fi
 
